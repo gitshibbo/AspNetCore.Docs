@@ -1,18 +1,21 @@
 ---
-title: Deployment layout for ASP.NET Core Blazor WebAssembly apps
+title: Deployment layout for ASP.NET Core hosted Blazor WebAssembly apps
 author: guardrex
-description: Learn how to enable Blazor WebAssembly deployments in environments that block the download and execution of dynamic-link library (DLL) files.
+description: Learn how to enable hosted Blazor WebAssembly deployments in environments that block the download and execution of dynamic-link library (DLL) files.
 monikerRange: '>= aspnetcore-6.0'
 ms.author: riande
 ms.custom: mvc
-ms.date: 11/09/2021
+ms.date: 11/08/2022
 uid: blazor/host-and-deploy/webassembly-deployment-layout
 ---
-# Deployment layout for ASP.NET Core Blazor WebAssembly apps
+# Deployment layout for ASP.NET Core hosted Blazor WebAssembly apps
 
-This article explains how to enable Blazor WebAssembly deployments in environments that block the download and execution of dynamic-link library (DLL) files.
+This article explains how to enable hosted Blazor WebAssembly deployments in environments that block the download and execution of dynamic-link library (DLL) files.
 
-Blazor WebAssembly apps require [dynamic-link libraries (DLLs)](/windows/win32/dlls/dynamic-link-libraries) to function, but some environments block clients from downloading and executing DLLs. In a subset of these environments, [changing the filename extension of DLL files (`.dll`)](xref:blazor/host-and-deploy/webassembly#change-the-filename-extension-of-dll-files) is sufficient to bypass security restrictions, but security products are often able to scan the content of files traversing the network and block or quarantine DLL files. This article describes one approach for enabling Blazor WebAssembly apps in these environments, where a multipart bundle file is created from the app's DLLs so that the DLLs can be downloaded together bypassing security restrictions.
+> [!NOTE]
+> This guidance addresses environments that block clients from downloading and executing DLLs. In .NET 8 or later, Blazor uses the Webcil file format to address this problem. For more information, see <xref:blazor/host-and-deploy/webassembly?view=aspnetcore-8.0&preserve-view=true#webcil-packaging-format-for-net-assemblies>. Multipart bundling using the experimental NuGet package described by this article isn't supported for Blazor apps in .NET 8 or later. For more information, see [Enhance Microsoft.AspNetCore.Components.WebAssembly.MultipartBundle package to define a custom bundle format (dotnet/aspnetcore #36978)](https://github.com/dotnet/aspnetcore/issues/36978#issuecomment-1439283893). You can use the guidance in this article to create your own multipart bundling NuGet package for .NET 8 or later.
+
+Blazor WebAssembly apps require [dynamic-link libraries (DLLs)](/windows/win32/dlls/dynamic-link-libraries) to function, but some environments block clients from downloading and executing DLLs. In a subset of these environments, [changing the file name extension of DLL files (`.dll`)](xref:blazor/host-and-deploy/webassembly#change-the-file-name-extension-of-dll-files) is sufficient to bypass security restrictions, but security products are often able to scan the content of files traversing the network and block or quarantine DLL files. This article describes one approach for enabling Blazor WebAssembly apps in these environments, where a multipart bundle file is created from the app's DLLs so that the DLLs can be downloaded together bypassing security restrictions.
 
 A hosted Blazor WebAssembly app can customize its published files and packaging of app DLLs using the following features:
 
@@ -29,29 +32,32 @@ The approach demonstrated in this article serves as a starting point for develop
 
 ## Experimental NuGet package and sample app
 
-The approach described in this article is used by the *experimental* [`Microsoft.AspNetCore.Components.WebAssembly.MultipartBundle` package (NuGet.org)](https://www.nuget.org/packages/Microsoft.AspNetCore.Components.WebAssembly.MultipartBundle). The package contains MSBuild targets to customize the Blazor publish output and a [JavaScript initializer](xref:blazor/js-interop/index#javascript-initializers) to use a custom [boot resource loader](xref:blazor/fundamentals/startup#load-boot-resources), each of which are described in detail later in this article.
+<!-- UPDATE 8.0 Confirm that the package on NuGet indicates
+                support for only 6.0 and 7.0 at 8.0 RTM. -->
+
+The approach described in this article is used by the *experimental* [`Microsoft.AspNetCore.Components.WebAssembly.MultipartBundle` package (NuGet.org)](https://www.nuget.org/packages/Microsoft.AspNetCore.Components.WebAssembly.MultipartBundle) for .NET 6 and 7 apps. The package contains MSBuild targets to customize the Blazor publish output and a [JavaScript initializer](xref:blazor/js-interop/index#javascript-initializers) to use a custom [boot resource loader](xref:blazor/fundamentals/startup#load-boot-resources), each of which are described in detail later in this article.
 
 [Experimental code (includes the NuGet package reference source and `CustomPackagedApp` sample app)](https://github.com/aspnet/AspLabs/tree/main/src/BlazorWebAssemblyCustomInitialization)
 
 > [!WARNING]
-> Experimental and preview features are provided for the purpose of collecting feedback and aren't supported for production use. For more information and to provide feedback to the ASP.NET Core product unit, see [Consider releasing a supported version of `Microsoft.AspNetCore.Components.WebAssembly.MultipartBundle` (dotnet/aspnetcore #36978)](https://github.com/dotnet/aspnetcore/issues/36978).
+> Experimental and preview features are provided for the purpose of collecting feedback and aren't supported for production use.
 
 Later in this article, the [Customize the Blazor WebAssembly loading process via a NuGet package](#customize-the-blazor-webassembly-loading-process-via-a-nuget-package) section with its three subsections provide detailed explanations on the configuration and code in the `Microsoft.AspNetCore.Components.WebAssembly.MultipartBundle` package. The detailed explanations are important to understand when you create your own strategy and custom loading process for Blazor WebAssembly apps. To use the published, experimental, unsupported NuGet package without customization as a **local demonstration**, perform the following steps:
 
 1. Use an existing hosted Blazor WebAssembly [solution](xref:blazor/tooling#visual-studio-solution-file-sln) or create a new solution from the Blazor WebAssembly project template using Visual Studio or by passing the [`-ho|--hosted` option](/dotnet/core/tools/dotnet-new-sdk-templates#blazorwasm) to the [`dotnet new`](/dotnet/core/tools/dotnet-new) command (`dotnet new blazorwasm -ho`). For more information, see <xref:blazor/tooling>.
 
-1. In the **`Client`** project, add the experimental `Microsoft.AspNetCore.Components.WebAssembly.MultipartBundle` package.
+1. In the **:::no-loc text="Client":::** project, add the experimental `Microsoft.AspNetCore.Components.WebAssembly.MultipartBundle` package.
 
    [!INCLUDE[](~/includes/package-reference.md)]
 
-1. In the **`Server`** project, add an endpoint for serving the bundle file (`app.bundle`). Example code can be found in the [Serve the bundle from the host server app](#serve-the-bundle-from-the-host-server-app) section of this article.
+1. In the **:::no-loc text="Server":::** project, add an endpoint for serving the bundle file (`app.bundle`). Example code can be found in the [Serve the bundle from the host server app](#serve-the-bundle-from-the-host-server-app) section of this article.
 
 1. Publish the app in Release configuration.
 
 ## Customize the Blazor WebAssembly loading process via a NuGet package
 
 > [!WARNING]
-> The guidance in this section with its three subsections pertains to building a NuGet package from scratch to implement your own strategy and custom loading process. The *experimental* [`Microsoft.AspNetCore.Components.WebAssembly.MultipartBundle` package (NuGet.org)](https://www.nuget.org/packages/Microsoft.AspNetCore.Components.WebAssembly.MultipartBundle) is based on the guidance in this section. When using the provided package in a **local demonstration** of the multipart bundle download approach, you don't need to follow the guidance in this section. For guidance on how to use the provided package, see the [Experimental NuGet package and sample app](#experimental-nuget-package-and-sample-app) section.
+> The guidance in this section with its three subsections pertains to building a NuGet package from scratch to implement your own strategy and custom loading process. The *experimental* [`Microsoft.AspNetCore.Components.WebAssembly.MultipartBundle` package (NuGet.org)](https://www.nuget.org/packages/Microsoft.AspNetCore.Components.WebAssembly.MultipartBundle) for .NET 6 and 7 is based on the guidance in this section. When using the provided package in a **local demonstration** of the multipart bundle download approach, you don't need to follow the guidance in this section. For guidance on how to use the provided package, see the [Experimental NuGet package and sample app](#experimental-nuget-package-and-sample-app) section.
 
 Blazor app resources are packed into a multipart bundle file and loaded by the browser via a custom [JavaScript (JS) initializer](xref:blazor/js-interop/index#javascript-initializers). For an app consuming the package with the JS initializer, the app only requires that the bundle file is served when requested. All of the other aspects of this approach are handled transparently.
 
@@ -60,7 +66,7 @@ Four customizations are required to how a default published Blazor app loads:
 * An MSBuild task to transform the publish files.
 * A NuGet package with MSBuild targets that hooks into the Blazor publishing process, transforms the output, and defines one or more Blazor Publish Extension files (in this case, a single bundle).
 * A JS initializer to update the Blazor WebAssembly resource loader callback so that it loads the bundle and provides the app with the individual files.
-* A helper on the host **`Server`** app to ensure that the bundle is served to clients on request.
+* A helper on the host **:::no-loc text="Server":::** app to ensure that the bundle is served to clients on request.
 
 ### Create an MSBuild task to customize the list of published files and define new extensions
 
@@ -114,7 +120,7 @@ The following example `BundleBlazorAssets` class is a starting point for further
 * In the `Execute` method, the bundle is created from the following three file types:
   * JavaScript files (`dotnet.js`)
   * WASM files (`dotnet.wasm`)
-  * App DLLs (`*.dll`)
+  * App DLLs (`.dll`)
 * A `multipart/form-data` bundle is created. Each file is added to the bundle with its respective descriptions via the [Content-Disposition header](https://developer.mozilla.org/docs/Web/HTTP/Headers/Content-Disposition) and the [Content-Type header](https://developer.mozilla.org/docs/Web/HTTP/Headers/Content-Type).
 * After the bundle is created, the bundle is written to a file.
 * The build is configured for the extension. The following code creates an extension item and adds it to the `Extension` property. Each extension item contains three pieces of data:
@@ -349,7 +355,7 @@ Due to security restrictions, ASP.NET Core doesn't serve the `app.bundle` file b
 > [!NOTE]
 > Since the same optimizations are transparently applied to the Publish Extensions that are applied to the app's files, the `app.bundle.gz` and `app.bundle.br` compressed asset files are produced automatically on publish.
 
-Place C# code in `Program.cs` of the **`Server`** project immediately before the line that sets the fallback file to `index.html` (`app.MapFallbackToFile("index.html");`) to respond to a request for the bundle file (for example, `app.bundle`):
+Place C# code in `Program.cs` of the **:::no-loc text="Server":::** project immediately before the line that sets the fallback file to `index.html` (`app.MapFallbackToFile("index.html");`) to respond to a request for the bundle file (for example, `app.bundle`):
 
 ```csharp
 app.MapGet("app.bundle", (HttpContext context) =>

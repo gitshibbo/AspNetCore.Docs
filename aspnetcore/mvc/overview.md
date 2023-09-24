@@ -157,7 +157,7 @@ In addition to being a great platform for building web sites, ASP.NET Core MVC h
 
 The framework includes support for HTTP content-negotiation with built-in support to [format data](xref:web-api/advanced/formatting) as JSON or XML. Write [custom formatters](xref:web-api/advanced/custom-formatters) to add support for your own formats.
 
-Use link generation to enable support for hypermedia. Easily enable support for [cross-origin resource sharing (CORS)](https://www.w3.org/TR/cors/) so that your Web APIs can be shared across multiple Web applications.
+Use link generation to enable support for hypermedia. Easily enable support for [Cross-Origin Resource Sharing (CORS)](https://www.w3.org/TR/cors/) so that your Web APIs can be shared across multiple Web applications.
 
 ## Testability
 
@@ -213,8 +213,8 @@ The `EnvironmentTagHelper` can be used to include different scripts in your view
     <script src="~/lib/jquery/dist/jquery.js"></script>
 </environment>
 <environment names="Staging,Production">
-    <script src="https://ajax.aspnetcdn.com/ajax/jquery/jquery-2.1.4.min.js"
-            asp-fallback-src="~/lib/jquery/dist/jquery.min.js"
+    <script src="https://ajax.aspnetcdn.com/ajax/jquery/jquery-2.1.4.js"
+            asp-fallback-src="~/lib/jquery/dist/jquery.js"
             asp-fallback-test="window.jQuery">
     </script>
 </environment>
